@@ -490,7 +490,7 @@
 
 
 ###################
-### Version_3.0.0.2
+### Version_3.0.0.3
 import streamlit as st
 import pandas as pd
 import os
@@ -498,28 +498,34 @@ import zipfile
 import tempfile
 import json
 from io import BytesIO
-import matplotlib.pyplot as plt
 
 # =========================
-# CONFIG
+# PAGE CONFIG
 # =========================
 st.set_page_config(
-    page_title="AQI Dashboard",
+    page_title="AQI Analytics Dashboard",
     layout="wide",
     page_icon="🌍"
 )
 
 # =========================
-# STYLE
+# PREMIUM UI STYLE
 # =========================
 st.markdown("""
 <style>
 .title {
-    font-size: 34px;
+    font-size: 36px;
     font-weight: 800;
     text-align: center;
     color: white;
 }
+
+.subtitle {
+    text-align: center;
+    color: #94a3b8;
+    margin-bottom: 10px;
+}
+
 .card {
     background: #111827;
     padding: 20px;
@@ -529,13 +535,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="title">🌍 AQI Analytics Dashboard</div>', unsafe_allow_html=True)
-
-# =========================
-# SESSION RESET (CLEAR BUTTON)
-# =========================
-def reset_app():
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
+st.markdown('<div class="subtitle">Upload data → Generate AQI Time Slot Report</div>', unsafe_allow_html=True)
 
 # =========================
 # LOAD DEVICE MAPPING
@@ -578,7 +578,7 @@ def smart(val):
         return None
 
 # =========================
-# PROCESS
+# PROCESS DATA
 # =========================
 def process_folder(path):
     results = []
@@ -587,7 +587,7 @@ def process_folder(path):
         if file.endswith(".xlsx"):
             file_path = os.path.join(path, file)
             device = os.path.splitext(file)[0]
-            location = address_mapping.get(device, "Unknown")
+            location = address_mapping.get(device, "Unknown Location")
 
             try:
                 df = pd.read_excel(file_path, skiprows=6, header=None)
@@ -616,6 +616,7 @@ def process_folder(path):
 
                 for slot, (s, e) in time_ranges.items():
                     df_s = df[(df['Hour'] >= s) & (df['Hour'] < e)]
+
                     if df_s.empty:
                         continue
 
@@ -636,6 +637,13 @@ def process_folder(path):
     return pd.DataFrame(results)
 
 # =========================
+# SESSION RESET
+# =========================
+def reset_app():
+    st.session_state.clear()
+    st.rerun()
+
+# =========================
 # SIDEBAR
 # =========================
 with st.sidebar:
@@ -648,36 +656,51 @@ with st.sidebar:
         if new_id and new_name:
             address_mapping[new_id] = new_name
             save_mapping(address_mapping)
-            st.success("Added!")
+            st.success("Device Added!")
 
     st.markdown("---")
 
     upload_type = st.radio("Upload Type", ["ZIP", "Excel Files"])
 
-    file_name = st.text_input("Output filename")
+    file_name = st.text_input("Output file name (optional)")
 
     st.markdown("---")
 
-    # CLEAR BUTTON
-    if st.button("🧹 Clear / Reset App"):
+    if st.button("🧹 Clear / Reset"):
         reset_app()
-        st.rerun()
 
 # =========================
-# MAIN
+# MAIN CONTAINER
 # =========================
 st.markdown('<div class="card">', unsafe_allow_html=True)
 
-# SHOW DEVICE BUTTON (NOT DEFAULT)
-show_devices = st.button("📌 Show Devices")
+# =========================
+# SHOW DEVICE BUTTON (TOP SECTION)
+# =========================
+col1, col2 = st.columns([1, 3])
 
-# PROCESS
+with col1:
+    show_devices = st.button("📌 Show Devices")
+
+with col2:
+    st.write("")  # spacing
+
+if show_devices:
+    st.subheader("📌 Device List")
+    st.dataframe(
+        pd.DataFrame(address_mapping.items(), columns=["Device ID", "Location"]),
+        use_container_width=True
+    )
+
+# =========================
+# FILE UPLOAD + PROCESS
+# =========================
 result_df = None
 
 if upload_type == "ZIP":
-    zip_file = st.file_uploader("Upload ZIP", type=["zip"])
+    zip_file = st.file_uploader("Upload ZIP File", type=["zip"])
 
-    if zip_file and st.button("Process"):
+    if zip_file and st.button("🚀 Process"):
         with tempfile.TemporaryDirectory() as tmp:
             with zipfile.ZipFile(zip_file, 'r') as z:
                 z.extractall(tmp)
@@ -685,9 +708,9 @@ if upload_type == "ZIP":
             result_df = process_folder(tmp)
 
 else:
-    files = st.file_uploader("Upload Excel", type=["xlsx"], accept_multiple_files=True)
+    files = st.file_uploader("Upload Excel Files", type=["xlsx"], accept_multiple_files=True)
 
-    if files and st.button("Process"):
+    if files and st.button("🚀 Process"):
         with tempfile.TemporaryDirectory() as tmp:
             for f in files:
                 with open(os.path.join(tmp, f.name), "wb") as w:
@@ -696,45 +719,19 @@ else:
             result_df = process_folder(tmp)
 
 # =========================
-# DEVICE TABLE (ONLY ON BUTTON CLICK)
-# =========================
-if show_devices:
-    st.subheader("📌 Device List")
-    st.dataframe(pd.DataFrame(address_mapping.items(), columns=["Device ID", "Location"]))
-
-# =========================
-# ANALYTICS DASHBOARD
+# OUTPUT SECTION
 # =========================
 if result_df is not None and not result_df.empty:
-    st.success("Processing Done ✅")
+    st.success("Processing Completed ✅")
 
-    st.dataframe(result_df.head())
+    st.dataframe(result_df, use_container_width=True)
 
-    # =========================
-    # CHART 1 - AVG AQI BY DEVICE
-    # =========================
-    st.subheader("📊 Avg AQI by Device")
+    # filename handling
+    final_name = file_name.strip()
 
-    if "Air Quality Index Avg" in result_df.columns:
-        fig, ax = plt.subplots()
-        result_df.groupby("Device")["Air Quality Index Avg"].mean().plot(kind="bar", ax=ax)
-        st.pyplot(fig)
-
-    # =========================
-    # CHART 2 - PM2.5 COMPARISON
-    # =========================
-    st.subheader("🌫️ PM2.5 Comparison")
-
-    if "PM 2.5 (ug/m3) Avg" in result_df.columns:
-        fig2, ax2 = plt.subplots()
-        result_df.groupby("Device")["PM 2.5 (ug/m3) Avg"].mean().plot(kind="bar", ax=ax2)
-        st.pyplot(fig2)
-
-    # =========================
-    # DOWNLOAD
-    # =========================
-    final_name = file_name.strip() or "timesheet.xlsx"
-    if not final_name.endswith(".xlsx"):
+    if not final_name:
+        final_name = "timesheet.xlsx"
+    elif not final_name.endswith(".xlsx"):
         final_name += ".xlsx"
 
     buffer = BytesIO()
