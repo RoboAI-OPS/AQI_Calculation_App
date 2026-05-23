@@ -490,7 +490,7 @@
 
 
 ###################
-### Version_3.0.0.4
+### Version_3.0.0.5
 import streamlit as st
 import pandas as pd
 import os
@@ -535,10 +535,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="title">🌍 AQI Analytics Dashboard</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Upload → Process → Download Report</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Upload → Process → View → Download</div>', unsafe_allow_html=True)
 
 # =========================
-# LOAD DEVICE MAP
+# LOAD DEVICE MAPPING
 # =========================
 MAPPING_FILE = "device_mapping.json"
 
@@ -637,6 +637,12 @@ def process_folder(path):
     return pd.DataFrame(results)
 
 # =========================
+# SESSION STATE INIT
+# =========================
+if "result_df" not in st.session_state:
+    st.session_state.result_df = None
+
+# =========================
 # SIDEBAR
 # =========================
 with st.sidebar:
@@ -657,56 +663,52 @@ with st.sidebar:
 
     file_name = st.text_input("Output file name (optional)")
 
+    if st.button("🧹 Clear / Reset"):
+        st.session_state.result_df = None
+        st.rerun()
+
 # =========================
 # MAIN UI
 # =========================
 st.markdown('<div class="card">', unsafe_allow_html=True)
 
-result_df = None
-download_ready = False
-output_buffer = None
+# =========================
+# UPLOAD + PROCESS
+# =========================
+zip_file = None
+files = None
 
-# =========================
-# PROCESS BUTTON LOGIC
-# =========================
 if upload_type == "ZIP":
     zip_file = st.file_uploader("Upload ZIP File", type=["zip"])
 
-    if zip_file:
-        if st.button("🚀 Process"):
-            with tempfile.TemporaryDirectory() as tmp:
-                with zipfile.ZipFile(zip_file, 'r') as z:
-                    z.extractall(tmp)
+    if zip_file and st.button("🚀 Process ZIP"):
+        with tempfile.TemporaryDirectory() as tmp:
+            with zipfile.ZipFile(zip_file, 'r') as z:
+                z.extractall(tmp)
 
-                result_df = process_folder(tmp)
-
-                if not result_df.empty:
-                    download_ready = True
+            st.session_state.result_df = process_folder(tmp)
 
 else:
     files = st.file_uploader("Upload Excel Files", type=["xlsx"], accept_multiple_files=True)
 
-    if files:
-        if st.button("🚀 Process"):
-            with tempfile.TemporaryDirectory() as tmp:
-                for f in files:
-                    with open(os.path.join(tmp, f.name), "wb") as w:
-                        w.write(f.getbuffer())
+    if files and st.button("🚀 Process Files"):
+        with tempfile.TemporaryDirectory() as tmp:
+            for f in files:
+                with open(os.path.join(tmp, f.name), "wb") as w:
+                    w.write(f.getbuffer())
 
-                result_df = process_folder(tmp)
-
-                if not result_df.empty:
-                    download_ready = True
+            st.session_state.result_df = process_folder(tmp)
 
 # =========================
-# OUTPUT + DOWNLOAD (ONLY AFTER PROCESS)
+# RESULT VIEW (AFTER PROCESS ONLY)
 # =========================
-if download_ready and result_df is not None:
+if st.session_state.result_df is not None and not st.session_state.result_df.empty:
 
-    st.success("Processing Completed ✅")
+    st.success("Processing Completed Successfully ✅")
 
-    st.dataframe(result_df, use_container_width=True)
+    st.dataframe(st.session_state.result_df, use_container_width=True)
 
+    # filename logic
     final_name = file_name.strip()
 
     if not final_name:
@@ -714,13 +716,13 @@ if download_ready and result_df is not None:
     elif not final_name.endswith(".xlsx"):
         final_name += ".xlsx"
 
-    output_buffer = BytesIO()
-    with pd.ExcelWriter(output_buffer, engine="openpyxl") as writer:
-        result_df.to_excel(writer, index=False)
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        st.session_state.result_df.to_excel(writer, index=False)
 
     st.download_button(
         "📥 Download Report",
-        output_buffer.getvalue(),
+        buffer.getvalue(),
         file_name=final_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
