@@ -490,7 +490,7 @@
 
 
 ###################
-### Version_3.0.0.3
+### Version_3.0.0.4
 import streamlit as st
 import pandas as pd
 import os
@@ -509,7 +509,7 @@ st.set_page_config(
 )
 
 # =========================
-# PREMIUM UI STYLE
+# UI STYLE
 # =========================
 st.markdown("""
 <style>
@@ -523,7 +523,7 @@ st.markdown("""
 .subtitle {
     text-align: center;
     color: #94a3b8;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 .card {
@@ -535,10 +535,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="title">🌍 AQI Analytics Dashboard</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Upload data → Generate AQI Time Slot Report</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Upload → Process → Download Report</div>', unsafe_allow_html=True)
 
 # =========================
-# LOAD DEVICE MAPPING
+# LOAD DEVICE MAP
 # =========================
 MAPPING_FILE = "device_mapping.json"
 
@@ -578,7 +578,7 @@ def smart(val):
         return None
 
 # =========================
-# PROCESS DATA
+# PROCESS FUNCTION
 # =========================
 def process_folder(path):
     results = []
@@ -637,13 +637,6 @@ def process_folder(path):
     return pd.DataFrame(results)
 
 # =========================
-# SESSION RESET
-# =========================
-def reset_app():
-    st.session_state.clear()
-    st.rerun()
-
-# =========================
 # SIDEBAR
 # =========================
 with st.sidebar:
@@ -664,69 +657,56 @@ with st.sidebar:
 
     file_name = st.text_input("Output file name (optional)")
 
-    st.markdown("---")
-
-    if st.button("🧹 Clear / Reset"):
-        reset_app()
-
 # =========================
-# MAIN CONTAINER
+# MAIN UI
 # =========================
 st.markdown('<div class="card">', unsafe_allow_html=True)
 
-# =========================
-# SHOW DEVICE BUTTON (TOP SECTION)
-# =========================
-col1, col2 = st.columns([1, 3])
-
-with col1:
-    show_devices = st.button("📌 Show Devices")
-
-with col2:
-    st.write("")  # spacing
-
-if show_devices:
-    st.subheader("📌 Device List")
-    st.dataframe(
-        pd.DataFrame(address_mapping.items(), columns=["Device ID", "Location"]),
-        use_container_width=True
-    )
-
-# =========================
-# FILE UPLOAD + PROCESS
-# =========================
 result_df = None
+download_ready = False
+output_buffer = None
 
+# =========================
+# PROCESS BUTTON LOGIC
+# =========================
 if upload_type == "ZIP":
     zip_file = st.file_uploader("Upload ZIP File", type=["zip"])
 
-    if zip_file and st.button("🚀 Process"):
-        with tempfile.TemporaryDirectory() as tmp:
-            with zipfile.ZipFile(zip_file, 'r') as z:
-                z.extractall(tmp)
+    if zip_file:
+        if st.button("🚀 Process"):
+            with tempfile.TemporaryDirectory() as tmp:
+                with zipfile.ZipFile(zip_file, 'r') as z:
+                    z.extractall(tmp)
 
-            result_df = process_folder(tmp)
+                result_df = process_folder(tmp)
+
+                if not result_df.empty:
+                    download_ready = True
 
 else:
     files = st.file_uploader("Upload Excel Files", type=["xlsx"], accept_multiple_files=True)
 
-    if files and st.button("🚀 Process"):
-        with tempfile.TemporaryDirectory() as tmp:
-            for f in files:
-                with open(os.path.join(tmp, f.name), "wb") as w:
-                    w.write(f.getbuffer())
+    if files:
+        if st.button("🚀 Process"):
+            with tempfile.TemporaryDirectory() as tmp:
+                for f in files:
+                    with open(os.path.join(tmp, f.name), "wb") as w:
+                        w.write(f.getbuffer())
 
-            result_df = process_folder(tmp)
+                result_df = process_folder(tmp)
+
+                if not result_df.empty:
+                    download_ready = True
 
 # =========================
-# OUTPUT SECTION
+# OUTPUT + DOWNLOAD (ONLY AFTER PROCESS)
 # =========================
-if result_df is not None and not result_df.empty:
+if download_ready and result_df is not None:
+
     st.success("Processing Completed ✅")
 
     st.dataframe(result_df, use_container_width=True)
 
-    # filename handling
     final_name = file_name.strip()
 
     if not final_name:
@@ -734,13 +714,13 @@ if result_df is not None and not result_df.empty:
     elif not final_name.endswith(".xlsx"):
         final_name += ".xlsx"
 
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+    output_buffer = BytesIO()
+    with pd.ExcelWriter(output_buffer, engine="openpyxl") as writer:
         result_df.to_excel(writer, index=False)
 
     st.download_button(
         "📥 Download Report",
-        buffer.getvalue(),
+        output_buffer.getvalue(),
         file_name=final_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
