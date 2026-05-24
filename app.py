@@ -706,7 +706,7 @@ def show_footer():
 
     st.markdown("""
     <div class="footer">
-    AQI Analytics Dashboard • <br> Professional Environmental Data Processing System
+    • AQI Analytics Dashboard • <br> • Professional Environmental Data Processing System • <br> • &copy; 2026 Developed By Debabrata •
     </div>
     """, unsafe_allow_html=True)
 
