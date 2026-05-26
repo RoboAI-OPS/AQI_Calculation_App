@@ -1124,7 +1124,7 @@
 #######################
 #######################
 ## Date: 26/5/2026
-### Version: 3.0.2.3
+### Version: 3.0.2.4
 import streamlit as st
 import pandas as pd
 import os
@@ -1151,13 +1151,13 @@ st.set_page_config(
 # =========================================================
 # Hide Fork, Github
 
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}   /* hides 3-dot menu */
-    footer {visibility: hidden;}      /* hides footer */
-    header {visibility: hidden;}      /* hides header bar */
-    </style>
-""", unsafe_allow_html=True)
+# st.markdown("""
+#     <style>
+#     #MainMenu {visibility: hidden;}   /* hides 3-dot menu */
+#     footer {visibility: hidden;}      /* hides footer */
+#     header {visibility: hidden;}      /* hides header bar */
+#     </style>
+# """, unsafe_allow_html=True)
 
 # =========================================================
 
