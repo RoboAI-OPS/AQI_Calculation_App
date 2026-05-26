@@ -1124,7 +1124,7 @@
 #######################
 #######################
 ## Date: 26/5/2026
-### Version: 3.0.2.2
+### Version: 3.0.2.3
 import streamlit as st
 import pandas as pd
 import os
@@ -1137,6 +1137,7 @@ import requests
 import base64
 
 
+
 # =========================================================
 # PAGE CONFIG
 # =========================================================
@@ -1145,6 +1146,20 @@ st.set_page_config(
     page_icon="🌍",
     layout="wide"
 )
+
+
+# =========================================================
+# Hide Fork, Github
+
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}   /* hides 3-dot menu */
+    footer {visibility: hidden;}      /* hides footer */
+    header {visibility: hidden;}      /* hides header bar */
+    </style>
+""", unsafe_allow_html=True)
+
+# =========================================================
 
 
 # =========================================================
