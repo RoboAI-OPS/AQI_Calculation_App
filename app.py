@@ -1122,8 +1122,9 @@
 
 ######################
 #######################
+#######################
 ## Date: 26/5/2026
-### Version: 3.0.2.1
+### Version: 3.0.2.2
 import streamlit as st
 import pandas as pd
 import os
@@ -1132,6 +1133,9 @@ import tempfile
 import json
 import time
 from io import BytesIO
+import requests
+import base64
+
 
 # =========================================================
 # PAGE CONFIG
@@ -1146,7 +1150,8 @@ st.set_page_config(
 # =========================================================
 # FILES
 # =========================================================
-DEVICE_FILE = "device_mapping.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEVICE_FILE = os.path.join(BASE_DIR, "device_mapping.json")
 
 
 # =========================================================
@@ -1324,9 +1329,58 @@ def load_devices():
 # =========================================================
 # SAVE DEVICES
 # =========================================================
+# =========================================================
+# SAVE DEVICES TO GITHUB
+# =========================================================
 def save_devices(device_map):
-    with open(DEVICE_FILE, "w") as f:
-        json.dump(device_map, f, indent=4)
+
+    token = st.secrets["GITHUB_TOKEN"]
+    repo = st.secrets["GITHUB_REPO"]
+
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    file_path = "device_mapping.json"
+
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+
+    # Get existing file SHA
+    response = requests.get(url, headers=headers)
+
+    sha = None
+    if response.status_code == 200:
+        sha = response.json()["sha"]
+
+    content = json.dumps(
+        device_map,
+        indent=4,
+        ensure_ascii=False
+    )
+
+    encoded_content = base64.b64encode(
+        content.encode("utf-8")
+    ).decode("utf-8")
+
+    payload = {
+        "message": "Update device mapping from AQI Dashboard",
+        "content": encoded_content,
+        "sha": sha
+    }
+
+    update_response = requests.put(
+        url,
+        headers=headers,
+        json=payload
+    )
+
+    if update_response.status_code in [200, 201]:
+        st.sidebar.success("GitHub JSON Updated ✅")
+    else:
+        st.sidebar.error(
+            f"GitHub update failed: {update_response.json()}"
+        )
 
 # =========================================================
 # INITIALIZE DEVICE MAP
